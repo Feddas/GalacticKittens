@@ -1,10 +1,12 @@
-using Unity.Netcode;
-
-using UnityEngine;
 using System.Collections;
+using Unity.Netcode;
+using UnityEngine;
 
 public class MenuManager : MonoBehaviour
 {
+    private static string PrefIpAddress = "PrefIpAddress";
+    private static string PrefPort = "PrefIpPort";
+
     [SerializeField]
     private Animator m_menuAnimator;
 
@@ -43,6 +45,7 @@ public class MenuManager : MonoBehaviour
 
         // Wait for the network Scene Manager to start
         yield return new WaitUntil(() => NetworkManager.Singleton.SceneManager != null);
+        TryPlayerPrefs();
 
         // Set the events on the loading manager
         // Doing this because every time the network session ends the loading manager stops
@@ -105,6 +108,28 @@ public class MenuManager : MonoBehaviour
 
         yield return new WaitUntil(() => LoadingFadeEffect.s_canLoad);
 
-        NetworkManager.Singleton.StartClient();
+        if (NetworkManager.Singleton.StartClient())
+        {
+            // On successful connection, save connection data for next time the game is played
+            var unityTransport = NetworkManager.Singleton.NetworkConfig.NetworkTransport as Unity.Netcode.Transports.UTP.UnityTransport;
+            PlayerPrefs.SetString(PrefIpAddress, unityTransport.ConnectionData.Address);
+            PlayerPrefs.SetInt(PrefPort, unityTransport.ConnectionData.Port);
+        }
+    }
+
+    /// <summary> Loads connection data that has been stored in PlayerPrefs. </summary>
+    private void TryPlayerPrefs()
+    {
+        // Return if there is no connection data to load
+        if (false == PlayerPrefs.HasKey(PrefIpAddress) && false == PlayerPrefs.HasKey(PrefPort))
+        {
+            return;
+        }
+
+        // Load players last successful connection data
+        var unityTransport = NetworkManager.Singleton.NetworkConfig.NetworkTransport as Unity.Netcode.Transports.UTP.UnityTransport;
+        string ipAddress = PlayerPrefs.GetString(PrefIpAddress, unityTransport.ConnectionData.Address);
+        ushort port = (ushort)PlayerPrefs.GetInt(PrefPort, unityTransport.ConnectionData.Port);
+        unityTransport.SetConnectionData(ipAddress, port);
     }
 }
